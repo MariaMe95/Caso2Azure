@@ -1,3 +1,7 @@
+resource "azurerm_resource_group" "rg" {
+  name     = var.resource_group_name
+  location = var.location
+}
 resource "azurerm_virtual_network" "vnet" {
   name                = var.network_name
   address_space       = ["10.0.0.0/16"]
@@ -99,10 +103,6 @@ resource "azurerm_network_security_group" "nsg1" {
 resource "azurerm_subnet_network_security_group_association" "nsg-link" {
   subnet_id                 = azurerm_subnet.subnet.id
   network_security_group_id = azurerm_network_security_group.nsg1.id
-}
-resource "azurerm_resource_group" "rg" {
-  name     = var.resource_group_name
-  location = var.location
 }
 
 resource "azurerm_container_registry" "acr" {
