@@ -3,6 +3,15 @@ resource "azurerm_resource_group" "rg" {
   location = var.location
 }
 
+resource "azurerm_container_registry" "acr" {
+  name                = var.registry_name
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  sku                 = var.registry_sku
+  admin_enabled       = true
+}
+
+
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = "myaks1"
   location            = azurerm_resource_group.rg.location
@@ -22,6 +31,13 @@ resource "azurerm_kubernetes_cluster" "aks" {
   tags = {
     Environment = "Production"
   }
+}
+
+resource "azurerm_role_assignment" "assignment" {
+  principal_id                     = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
+  role_definition_name             = "AcrPull"
+  scope                            = azurerm_container_registry.acr.id
+  skip_service_principal_aad_check = true
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -127,10 +143,3 @@ resource "azurerm_subnet_network_security_group_association" "nsg-link" {
   network_security_group_id = azurerm_network_security_group.nsg1.id
 }
 
-resource "azurerm_container_registry" "acr" {
-  name                = var.registry_name
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  sku                 = var.registry_sku
-  admin_enabled       = true
-}
