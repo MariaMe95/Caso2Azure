@@ -1,0 +1,8 @@
+- name: 'Playbook para autenticarse en el AKS desde Ansible'
+  hosts: webservers
+  remote_user: Mariauser
+  become: true
+  tasks:
+	- name: 'credenciales AKS'
+	  shell: 'az aks get-credentials --resource-group rg-maria --name myaks1 --overwrite-existing'
+
