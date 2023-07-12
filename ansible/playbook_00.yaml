@@ -7,7 +7,7 @@
     - vars/00_vars.yaml
 
   tasks:
-    - name: 'Instalación Podman'
+    - name: 'Instalación Podman, openssl y httpd-tools'
       yum:
         name: "{{ rpms }}"
         state: latest
