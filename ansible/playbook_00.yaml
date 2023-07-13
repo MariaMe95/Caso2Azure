@@ -1,10 +1,9 @@
----
 - name: 'First playbook'
-  hosts: webservers
+  hosts: localhost
   remote_user: Mariauser
   become: true
   vars_files:
-    - vars/00_vars.yaml
+    - ./vars/00_vars.yaml
 
   tasks:
     - name: 'Instalación Podman, openssl y httpd-tools'
@@ -12,36 +11,31 @@
         name: "{{ rpms }}"
         state: latest
 
-    - name: 'login podman'
-      containers.podman.podman_login:
-        username: MariaRegistry
-        password: 'KxYOCFIWn9Dsx+GfEotj2xauKLmfko6+eJhuP28VKE+ACRDDwrt4'
-   
-    - name: 'Creación de la imagen de contenedor'
+    - name: Crear directorio /etc/ssl/csr
+      file:
+        path: /etc/ssl/csr
+        state: directory
+        mode: '0755'
+
+    - name: Crear archivo de solicitud de certificado
+      file:
+        path: /etc/ssl/csr/ansible.com.csr
+        state: touch
+        mode: '0644'
+
+    - name: Generar certificado 509
+      community.crypto.x509_certificate:
+        path: /etc/ssl/crt/ansible.com.crt
+        privatekey_path: /etc/ssl/private/ansible.com.pem
+        csr_path: /etc/ssl/csr/ansible.com.csr
+        provider: selfsigned
+
+    - name: Creacion de la imagen de contenedor
       containers.podman.podman_image:
         name: myimagen
-        path: /Caso2Azure/podman/Containerfile
-        push: true
+        path: /Caso2Azure/podman
+       # push: true
 
-    - name: 'Accedo al ACR con las credenciales'
-      shell: 'az acr get-credentials --resource-group rg-maria --name MariaRegistry --overwrite-existing'
-
-    - name: 'Subir imagen a Azure Container Registry'
+    - name: Subir imagen a Azure Container Registry
       shell: 'podman push mariaregistry.azurecr.io/myimagen'
-
-    - name: 'Inicio del contenedor'
-      containers.podman.podman_container:
-        name: MariaRegistry
-        image: myimagen
-        state: started
-        restart: true
-        etc_hosts:
-          other: webservers
-        restart_policy: "no"
-        ports:
-          - "8080:8080"
-          - webservers
-        env:
-          usuario: "maria"
-          password: "maria"
 

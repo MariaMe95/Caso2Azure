@@ -1,4 +1,4 @@
 rpms: 
    - podman
-   - httpd-tools
+   - apache2
    - openssl

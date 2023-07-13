@@ -1,0 +1,41 @@
+---
+- name: 'Descarga imagenes del ARC'
+  hosts: webservers
+  remote_user: Mariauser
+  become: true
+  vars_files:
+    - ./vars/00_vars.yaml
+
+  tasks:
+    - name: 'Accedo al ACR con las credenciales'
+      shell: 'az acr get-credentials  --resource-group rg-maria --name MariaRegistry'
+
+    - name: 'Inicio del contenedor'
+      containers.podman.podman_container:
+        name: MariaRegistry
+        image: myimagen
+        state: started
+        restart: true
+        etc_hosts:
+          other: webservers
+        restart_policy: "no"
+        ports:
+          - "8080:8080"
+          - webservers
+        env:
+          usuario: "maria"
+          password: "devops23"
+
+     - name: Verificar los contenedores en ejecución
+        command: podman ps
+   
+     - name: Verificar el estado del servidor web
+         uri:
+          url: http://localhost:8080
+          return_content: yes
+          register: response
+
+    - name: Mostrar el estado del servidor web
+       debug:
+        msg: "El estado del servidor web es: {{ response.status }}"
+

@@ -1,0 +1,51 @@
+---
+- name: Despliegue de imagen en AKS y ACR
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Descargar imagen de Docker Hub
+      docker_image:
+        name: tu_usuario_dockerhub/tu_imagen:tag
+        source: pull
+
+    - name: Etiquetar imagen
+      shell: docker tag tu_usuario_dockerhub/tu_imagen:tag {{ acr.login_server }}/tu_imagen:tag
+      vars:
+        acr:
+          login_server: "my-acr.azurecr.io"  # Reemplaza "my-acr" con el nombre de tu ACR
+
+    - name: Autenticarse en ACR
+      azure_rm_azure_containers_login:
+        resource_group: "{{ hostvars['localhost']['resource_group_name'] }}"
+        registry_url: "{{ acr.login_server }}"
+        username: "{{ acr.admin_username }}"
+        password: "{{ acr.admin_password }}"
+      vars:
+        acr:
+          admin_username: "my-acr-admin-username"  # Reemplaza "my-acr-admin-username" con el nombre de usuario admin>
+          admin_password: "my-acr-admin-password"  # Reemplaza "my-acr-admin-password" con la contraseña del adminis>
+
+    - name: Subir imagen a ACR
+      shell: docker push {{ acr.login_server }}/tu_imagen:tag
+      vars:
+        acr:
+          login_server: "my-acr.azurecr.io"  # Reemplaza "my-acr" con el nombre de tu ACR
+
+    - name: Desplegar imagen en AKS
+      azure_rm_aks:
+        resource_group: "{{ hostvars['localhost']['resource_group_name'] }}"
+        name: "myaks1"  
+        state: present
+        agent_pool_profiles:
+          - name: default
+            count: 2
+            vm_size: "Standard_D2_v2"
+        linux_profile:
+          admin_username: "Mariauser"
+        network_profile:
+          network_plugin: azure
+        service_principal:
+          client_id: "{{ hostvars['localhost']['aks_kubelet_identity_object_id'] }}"
+          client_secret: ""  # Agrega la contraseña del servicio principal de AKS si es necesaria
+
