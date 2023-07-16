@@ -1,19 +1,33 @@
+
 - name: 'First playbook'
   hosts: localhost
+  connection: local
   remote_user: Mariauser
   become: true
   vars_files:
     - ./vars/00_vars.yaml
 
   tasks:
+
     - name: 'Instalación Podman, openssl y httpd-tools'
       yum:
         name: "{{ rpms }}"
         state: latest
-
-    - name: Crear directorio /etc/ssl/csr
+    
+    - name: 'crear usuario'
+      user: 
+       name: usuario
+       password: usuario1
+  
+    - name: 'Login podman'
+      containers.podman.podman_login:
+        username: "{{ podman_username }}"
+        password: "{{ podman_password }}"  
+    
+    - name: Crear directorio /etc/ssl/crt
+      become: true
       file:
-        path: /etc/ssl/csr
+        path: /etc/ssl/crt
         state: directory
         mode: '0755'
 
@@ -23,19 +37,26 @@
         state: touch
         mode: '0644'
 
-    - name: Generar certificado 509
-      community.crypto.x509_certificate:
-        path: /etc/ssl/crt/ansible.com.crt
-        privatekey_path: /etc/ssl/private/ansible.com.pem
-        csr_path: /etc/ssl/csr/ansible.com.csr
-        provider: selfsigned
+    - name: Generar clave privada
+      command: openssl genpkey -algorithm RSA -out /etc/ssl/private/ansible.com.pem
+
+    - name: Generar certificado autofirmado
+      command: openssl req -new -x509 -sha256 -key /etc/ssl/private/ansible.com.pem -out /etc/ssl/crt/ansible.com.crt -days 365 \
+               -subj "/C=ES/ST=Madrid/L=Madrid/O=OpenAI/CN=ansible.com"
 
     - name: Creacion de la imagen de contenedor
-      containers.podman.podman_image:
+      podman_image:
         name: myimagen
         path: /Caso2Azure/podman
        # push: true
+        push_args:
+         dest: mariaregistry.azurecr.io
 
-    - name: Subir imagen a Azure Container Registry
-      shell: 'podman push mariaregistry.azurecr.io/myimagen'
+    - name: Subir imagen al ACR
+      command: podman push  myimagen  mariaregistry.azurecr.io/myimagen:latest
+      environment:
+        REGISTRY_AUTH_FILE: /root/.docker/config.json
+      become: true
 
+    - name: 'subir imagen al ACR'
+      shell: podman run mariaregistry.azurecr.io --rm -d -p 8080:8080 localhost/myimagen 
