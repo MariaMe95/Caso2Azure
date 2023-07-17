@@ -13,17 +13,27 @@
       yum:
         name: "{{ rpms }}"
         state: latest
-    
-    - name: 'crear usuario'
-      user: 
-       name: usuario
-       password: usuario1
-  
+      
     - name: 'Login podman'
       containers.podman.podman_login:
         username: "{{ podman_username }}"
-        password: "{{ podman_password }}"  
-    
+        password: "{{ podman_password }}"
+       # registry: mariaregistry.azurecr.io
+
+#    - name: 'crear un usuario'
+ #     community.general.htpasswd:
+  #     path: /Caso2Azure/podman/passwordfile
+   #    name: usuario
+    #   password: usuario1
+     #  owner: root
+      # group: www-data
+       #mode: 777
+     
+    - name: 'crear un usuario'
+      command: htpasswd -cBb .cred usuario devops23
+      args:
+        chdir: /Caso2Azure/podman
+
     - name: Crear directorio /etc/ssl/crt
       become: true
       file:
@@ -48,15 +58,18 @@
       podman_image:
         name: myimagen
         path: /Caso2Azure/podman
-       # push: true
+        push: true
         push_args:
          dest: mariaregistry.azurecr.io
 
-    - name: Subir imagen al ACR
-      command: podman push  myimagen  mariaregistry.azurecr.io/myimagen:latest
-      environment:
-        REGISTRY_AUTH_FILE: /root/.docker/config.json
-      become: true
 
-    - name: 'subir imagen al ACR'
-      shell: podman run mariaregistry.azurecr.io --rm -d -p 8080:8080 localhost/myimagen 
+    - name: Crear contenedor
+      containers.podman.podman_container:
+       name: contenedor
+       image: mariaregistry.azurecr.io/myimage:8080
+       ports:
+        - "8080:443"
+       state: created
+       generate_systemd:
+         path: "etc/systemd/system"
+         container_prefix: "web"
