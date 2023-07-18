@@ -1,8 +1,7 @@
-
 - name: 'First playbook'
   hosts: localhost
   connection: local
-  remote_user: Mariauser
+#  remote_user: Mariauser
   become: true
   vars_files:
     - ./vars/00_vars.yaml
@@ -16,23 +15,34 @@
       
     - name: 'Login podman'
       containers.podman.podman_login:
-        username: "{{ podman_username }}"
-        password: "{{ podman_password }}"
-       # registry: mariaregistry.azurecr.io
+        username: "{{ acr_username }}"
+        password: "{{ acr_password }}"
+        registry: mariaregistry.azurecr.io
 
-#    - name: 'crear un usuario'
- #     community.general.htpasswd:
-  #     path: /Caso2Azure/podman/passwordfile
-   #    name: usuario
-    #   password: usuario1
-     #  owner: root
-      # group: www-data
-       #mode: 777
      
-    - name: 'crear un usuario'
-      command: htpasswd -cBb .cred usuario devops23
+#    - name: 'crear un usuario local'
+ #     command: htpasswd -cBb .creds usuario devops23
+  #    args:
+   #     chdir: /Caso2Azure/podman
+
+    - name: 'crear un usuario en mv base datos'
+      command: htpasswd -cBb .creds usuario devops23
       args:
-        chdir: /Caso2Azure/podman
+        chdir: webserver
+
+    - name: Otorgar permisos  a los archivos de certificado y clave privada
+      file:
+        path: /home/Mariauser/webserver/webserver.csr
+        owner: Mariauser
+        group: Mariauser
+        mode: "0777"
+
+    - name: Otorgar permisos a los archivos de certificado y clave privada
+      file:
+        path: /home/Mariauser/webserver/webserver.key
+        owner: Mariauser
+        group: Mariauser
+        mode: "0777"
 
     - name: Crear directorio /etc/ssl/crt
       become: true
@@ -47,29 +57,77 @@
         state: touch
         mode: '0644'
 
-    - name: Generar clave privada
-      command: openssl genpkey -algorithm RSA -out /etc/ssl/private/ansible.com.pem
+#    - name: Generar clave privada en local
+ #     command: openssl genpkey -algorithm RSA -out /etc/ssl/private/ansible.com.pem
 
-    - name: Generar certificado autofirmado
-      command: openssl req -new -x509 -sha256 -key /etc/ssl/private/ansible.com.pem -out /etc/ssl/crt/ansible.com.crt -days 365 \
-               -subj "/C=ES/ST=Madrid/L=Madrid/O=OpenAI/CN=ansible.com"
+    - name: Generar clave privada rsa en mv
+      command: openssl genrsa -out /home/Mariauser/webserver/webserver.key
 
-    - name: Creacion de la imagen de contenedor
+
+#    - name: Generar certificado autofirmado en local
+ #     command: openssl req -new -x509 -sha256 -key /etc/ssl/private/ansible.com.pem -out /etc/ssl/crt/ansible.com.crt -days 365 \
+  #             -subj "/C=ES/ST=Madrid/L=Madrid/O=OpenAI/CN=ansible.com"
+
+#    - name: Generar peticion de solicitud certificado autofirmado en mv
+ #     command: openssl req -key /home/Mariauser/webserver/webserver.key -out /home/Mariauser/webserver/webserver.csr -days 365 \
+  #              -subj "/C=ES/ST=Madrid/L=Madrid/O=OpenAI/CN=mv"   
+
+    - name: Generar csr
+      community.crypto.openssl_csr:
+        path: /home/Mariauser/webserver/webserver.csr
+        privatekey_path: /home/Mariauser/webserver/webserver.key
+        common_name : mv
+
+    - name: Generar certificado 509
+      community.crypto.x509_certificate:
+       path: /home/Mariauser/webserver/webserver.crt
+       privatekey_path: /home/Mariauser/webserver/webserver.key
+       csr_path: /home/Mariauser/webserver/webserver.csr
+       provider: selfsigned
+
+
+#    - name: Creacion de la imagen de contenedor en localhost
+ #     podman_image:
+  #      name: myimagen
+   #     path: /Caso2Azure/podman
+    #    push: true
+     #   push_args:
+      #   dest: mariaregistry.azurecr.io
+
+    - name: Creacion de la imagen de contenedor en mv
       podman_image:
-        name: myimagen
-        path: /Caso2Azure/podman
-        push: true
-        push_args:
+       name: myimagen
+       path: /home/Mariauser/webserver
+       push: true
+       push_args:
          dest: mariaregistry.azurecr.io
+       #username: "{{ acr_username }}"
+       #password: "{{ acr_password }}"
+  
+# Siguiente paso sería etiquetar hacia nuestro container registry
 
+    - name: Etiquetar imagen
+      containers.podman.podman_tag:
+       image: localhost/myimagen
+       target_names:
+        - mariaregistry.azurecr.io/myimagen/casopractico2    
+  
+#    - name: run contenedor
+ #     containers.podman.podman_container:
+  #      become: yes
+   #     name: contenedor
+    #    image: localhost/myimagen
+     #   state: started   
 
     - name: Crear contenedor
       containers.podman.podman_container:
        name: contenedor
-       image: mariaregistry.azurecr.io/myimage:8080
+       image: mariaregistry.azurecr.io/myimagen/casopractico2
        ports:
         - "8080:443"
        state: created
        generate_systemd:
          path: "etc/systemd/system"
+         restart_policy: on-failure
          container_prefix: "web"
+
