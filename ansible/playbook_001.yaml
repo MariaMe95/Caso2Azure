@@ -1,6 +1,6 @@
 ---
 - name: 'Descarga imagenes del ARC'
-  hosts: localhost
+  hosts: webservers
   remote_user: Mariauser
   become: true
   vars_files:
@@ -12,8 +12,8 @@
  
     - name: 'Login podman'
       containers.podman.podman_login:
-        username: "{{ podman_username }}"
-        password: "{{ podman_password }}"
+        username: "{{ acr_username }}"
+        password: "{{ acr_password }}"
  
     - name: 'run container'
       containers.podman.podman_container:
@@ -30,7 +30,7 @@
    
     - name: Verificar el estado del servidor web
       uri:
-         url: http://localhost:8080
+         url: http://10.88.0.4:8080
          return_content: yes
       register: response
 

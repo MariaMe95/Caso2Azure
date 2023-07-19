@@ -1,7 +1,7 @@
 - name: 'First playbook'
-  hosts: localhost
-  connection: local
-#  remote_user: Mariauser
+  hosts: webservers
+#  connection: local
+  remote_user: Mariauser
   become: true
   vars_files:
     - ./vars/00_vars.yaml
@@ -12,7 +12,7 @@
       yum:
         name: "{{ rpms }}"
         state: latest
-      
+       
     - name: 'Login podman'
       containers.podman.podman_login:
         username: "{{ acr_username }}"
@@ -30,32 +30,20 @@
       args:
         chdir: webserver
 
-    - name: Otorgar permisos  a los archivos de certificado y clave privada
-      file:
-        path: /home/Mariauser/webserver/webserver.csr
-        owner: Mariauser
-        group: Mariauser
-        mode: "0777"
+#    - name: Otorgar permisos  a los archivos de certificado y clave privada
+ #     file:
+  #      path: /home/Mariauser/webserver/webserver.csr
+   #     owner: Mariauser
+    #    group: Mariauser
+     #   mode: "0777"
 
-    - name: Otorgar permisos a los archivos de certificado y clave privada
-      file:
-        path: /home/Mariauser/webserver/webserver.key
-        owner: Mariauser
-        group: Mariauser
-        mode: "0777"
+#    - name: Otorgar permisos a los archivos de certificado y clave privada
+ #     file:
+  #      path: /home/Mariauser/webserver/webserver.key
+   #     owner: Mariauser
+    #    group: Mariauser
+     #   mode: "0777"
 
-    - name: Crear directorio /etc/ssl/crt
-      become: true
-      file:
-        path: /etc/ssl/crt
-        state: directory
-        mode: '0755'
-
-    - name: Crear archivo de solicitud de certificado
-      file:
-        path: /etc/ssl/csr/ansible.com.csr
-        state: touch
-        mode: '0644'
 
 #    - name: Generar clave privada en local
  #     command: openssl genpkey -algorithm RSA -out /etc/ssl/private/ansible.com.pem
@@ -124,10 +112,15 @@
        name: contenedor
        image: mariaregistry.azurecr.io/myimagen/casopractico2
        ports:
-        - "8080:443"
+        - "8080:8080"
        state: created
        generate_systemd:
          path: "etc/systemd/system"
          restart_policy: on-failure
          container_prefix: "web"
 
+    - name: run contenedor
+      containers.podman.podman_container:
+        name: contenedor
+        image: localhost/myimagen
+        state: started   

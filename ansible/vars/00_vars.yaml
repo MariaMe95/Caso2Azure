@@ -1,4 +1,14 @@
 rpms: 
    - podman
-   - apache2
+   - httpd-tools
    - openssl
+#   - apache2
+
+username:
+ - Mariauser
+password:
+ - devops23
+
+acr_username: MariaRegistry
+acr_password: UXpYiUypGlFn7jnlaQuXhcUARGUkVrPPeunTGbDFve+ACRDjkok6
+
