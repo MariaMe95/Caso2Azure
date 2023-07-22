@@ -1,0 +1,13 @@
+ kind: : PersistentVolumeClaim
+ apiVersion: v1
+ metadata:
+  name: jenkins-claim
+  labels:
+   app: jenkins
+ spec:
+  storegeClassName: manual
+  accessNodes:
+   - ReadWriteMany
+  resources:
+   request:
+     storage: 2Gi
