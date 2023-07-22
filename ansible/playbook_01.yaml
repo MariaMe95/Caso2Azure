@@ -1,9 +1,68 @@
 ---
-- name: 'Playbook para autenticarse en el AKS desde Ansible'
+- name: Despliegue de imagen en AKS
   hosts: webservers
+  gather_facts: false
   remote_user: Mariauser
   become: true
-  tasks:
-    - name: 'credenciales AKS'
-      shell: 'az aks get-credentials --resource-group rg-maria --name myaks1'
+  vars_files:
+   - ./vars/00_vars.yaml
 
+  tasks:
+
+    - name: 'login'
+      containers.podman.podman_login:
+       username: "{{ acr_username }}"
+       password: "{{ acr_password }}"
+       registry: mariaregistry.azure.io
+
+    - name: Descargar imagen de Docker Hub
+      docker_image:
+        name: jenkins
+        source: pull
+
+    - name: Etiquetar imagen
+      containers.podman.podman_tag:
+       image: jenkins
+       target_names: 
+         - mariaregistry.azurecr.io/jenkins/casopractico2
+
+
+    - name: 'Crear pod y desplegar imagen'
+      k8s:
+        name: casopractico2-pod
+        namespace: default
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: casopractico2-pod
+          spec:
+            containers:
+            - name: mariaregistry.azurecr.io
+              image: mariaregistry.azurecr.io/jenkins/casopractico2
+              volumeMounts:
+                - name: volumen-persistente
+                  mountPath: /Caso2Azure/ansible
+            volumes:
+              - name: jenkins-claim-caso2
+                persistentVolumeClaim: /Caso2Azure/ansible
+                  claimName: jenkins-claim
+
+
+    - name: 'Crear servicio LoadBalancer para exponer la aplicación'
+      k8s:
+        name: casopractico2-service
+        namespace: default
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: casopractico2-service
+          spec:
+            selector:
+              app: casopractico2-pod
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 8080
+                type: LoadBalancer
