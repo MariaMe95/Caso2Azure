@@ -1,51 +1,68 @@
 ---
-- name: Despliegue de imagen en AKS y ACR
-  hosts: localhost
+- name: Despliegue de imagen en AKS
+  hosts: webservers
   gather_facts: false
+  remote_user: Mariauser
+  become: true
+  vars_files:
+   - ./vars/00_vars.yaml
 
   tasks:
+
+    - name: 'login'
+      containers.podman.podman_login:
+       username: "{{ acr_username }}"
+       password: "{{ acr_password }}"
+       registry: mariaregistry.azure.io
+
     - name: Descargar imagen de Docker Hub
       docker_image:
-        name: tu_usuario_dockerhub/tu_imagen:tag
+        name: jenkins
         source: pull
 
     - name: Etiquetar imagen
-      shell: docker tag tu_usuario_dockerhub/tu_imagen:tag {{ acr.login_server }}/tu_imagen:tag
-      vars:
-        acr:
-          login_server: "my-acr.azurecr.io"  # Reemplaza "my-acr" con el nombre de tu ACR
+      containers.podman.podman_tag:
+       image: jenkins
+       target_names: 
+         - mariaregistry.azurecr.io/jenkins/casopractico2
 
-    - name: Autenticarse en ACR
-      azure_rm_azure_containers_login:
-        resource_group: "{{ hostvars['localhost']['resource_group_name'] }}"
-        registry_url: "{{ acr.login_server }}"
-        username: "{{ acr.admin_username }}"
-        password: "{{ acr.admin_password }}"
-      vars:
-        acr:
-          admin_username: "my-acr-admin-username"  # Reemplaza "my-acr-admin-username" con el nombre de usuario admin>
-          admin_password: "my-acr-admin-password"  # Reemplaza "my-acr-admin-password" con la contraseña del adminis>
 
-    - name: Subir imagen a ACR
-      shell: docker push {{ acr.login_server }}/tu_imagen:tag
-      vars:
-        acr:
-          login_server: "my-acr.azurecr.io"  # Reemplaza "my-acr" con el nombre de tu ACR
+    - name: 'Crear pod y desplegar imagen'
+      k8s:
+        name: casopractico2-pod
+        namespace: default
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: casopractico2-pod
+          spec:
+            containers:
+            - name: mariaregistry.azurecr.io
+              image: mariaregistry.azurecr.io/jenkins/casopractico2
+              volumeMounts:
+                - name: volumen-persistente
+                  mountPath: /Caso2Azure/ansible
+            volumes:
+              - name: jenkins-claim-caso2
+                persistentVolumeClaim: /Caso2Azure/ansible
+                  claimName: jenkins-claim
 
-    - name: Desplegar imagen en AKS
-      azure_rm_aks:
-        resource_group: "{{ hostvars['localhost']['resource_group_name'] }}"
-        name: "myaks1"  
-        state: present
-        agent_pool_profiles:
-          - name: default
-            count: 2
-            vm_size: "Standard_D2_v2"
-        linux_profile:
-          admin_username: "Mariauser"
-        network_profile:
-          network_plugin: azure
-        service_principal:
-          client_id: "{{ hostvars['localhost']['aks_kubelet_identity_object_id'] }}"
-          client_secret: ""  # Agrega la contraseña del servicio principal de AKS si es necesaria
 
+    - name: 'Crear servicio LoadBalancer para exponer la aplicación'
+      k8s:
+        name: casopractico2-service
+        namespace: default
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: casopractico2-service
+          spec:
+            selector:
+              app: casopractico2-pod
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 8080
+                type: LoadBalancer

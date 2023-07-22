@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volumen-persistente
+  type: local
+spec:
+  storegeClassName: manual
+  capacity:
+    storege: 1Gi
+  accesModes:
+   - ReadWriteOnce
+
